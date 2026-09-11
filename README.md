@@ -32,6 +32,26 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
     └── chinese-code-review/          # 中文代码审查规范
 ```
 
+## 一键使用（推荐）
+
+无需手动复制任何文件。把下面这段提示词**整段复制**粘贴给你正在使用的 AI 编码工具（Claude Code、Cursor、Codex、Trae、龙虾、Hermes、WorkBuddy、WorkCode 等均可），即可让它自动拉取并加载本包全部规则与技能：
+
+```text
+请先为我完成规则加载，然后开始工作：
+1. 克隆 CMSPRO 规则技能包到当前环境（已存在则跳过并更新到最新）：
+   git clone https://gitee.com/holley/cmsproaitool.git cmspro-rules
+   （GitHub 源：https://github.com/rhl88/cmsproaitool.git，网络不通时可换用）
+2. 通读 cmspro-rules/AGENTS.md，严格遵守其中全部规则（语言要求、八荣八耻、全局框架保护、关键硬性规范）。
+3. 后续任务命中 AGENTS.md 第五章技能索引的触发条件时，先读取 cmspro-rules/skills/<技能名>/SKILL.md 并严格遵循其流程。
+4. 需要查阅详细规范时，按 AGENTS.md 第三章索引读取 cmspro-rules/rules/ 对应文档。
+完成后回复「CMSPRO 规则已加载」，然后等待我的任务指令。
+```
+
+> 说明：
+> - 该提示词不依赖任何工具的规则配置机制，纯对话即可生效，适合所有 AI 工具。
+> - 若工具支持项目级规则（AGENTS.md / .cursorrules / 自定义指令），建议再按下方「接入指南」做持久化配置，避免每次会话重复粘贴。
+> - 在 CMSPRO 项目内使用时，若本包已随项目分发（如位于 `docs/规则技能包/`），可把第 1 步替换为直接读取该目录下的 `AGENTS.md`。
+
 ## 接入指南
 
 统一原则：**规则以 `AGENTS.md` 为单一入口**，各工具按下表方式接入；技能目录 `skills/` 保持包内相对结构整体复制，技能内文引用的规范路径（`rules/...`）才能正确解析。
