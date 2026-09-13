@@ -95,7 +95,7 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 ```text
 请先为我完成规则加载，然后开始工作：
 1. 检查当前项目内是否已有 CMSPRO 规则技能包（依次查找 docs/规则技能包/、cmspro-rules/ 目录）：
-   - 已存在 → 直接使用该目录，跳过克隆；
+   - 已存在 → 直接使用该目录，并在其内执行 git pull 拉取最新版（拉取失败如网络不通则沿用本地现有版本继续）；
    - 不存在 → 克隆到项目内：git clone https://gitee.com/holley/cmsproaitool.git cmspro-rules
      （GitHub 源：https://github.com/rhl88/cmsproaitool.git，网络不通时可换用）
 2. 通读规则包根目录的 AGENTS.md，严格遵守其中全部规则（语言要求、八荣八耻、全局框架保护、关键硬性规范）。
