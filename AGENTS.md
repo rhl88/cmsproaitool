@@ -122,7 +122,9 @@
 │   ├── cursor/cmspro.mdc               # → .cursor/rules/
 │   ├── trae/cmspro.md                  # → .trae/rules/
 │   ├── windsurf/cmspro.md              # → .windsurf/rules/
+│   ├── kiro/cmspro.md                  # → .kiro/steering/
 │   ├── cline/cmspro.md                 # → .clinerules/
+│   ├── qoder/cmspro.md                 # → .qoder/rules/
 │   ├── github/copilot-instructions.md  # → .github/
 │   ├── gemini/GEMINI.md                # → 项目根（Gemini CLI）
 │   ├── aider/CONVENTIONS.md            # → 项目根（Aider）

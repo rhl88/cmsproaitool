@@ -1,6 +1,6 @@
 # CMSPRO 规则技能包
 
-CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编码工具**开放使用：Claude Code、Cursor、Codex、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy、OpenCode、龙虾、Hermes、WorkBuddy、WorkCode 等。
+CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编码工具**开放使用：Claude Code、Cursor、Codex、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy、Kiro、Qoder、通义灵码、OpenCode、龙虾、Hermes、WorkBuddy、WorkCode 等。
 
 包内所有引用均为相对路径，不含任何环境地址、账号与内部仓库信息，可直接分发与二次定制。
 
@@ -18,7 +18,9 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 │   ├── cursor/cmspro.mdc             # → .cursor/rules/（Cursor 新版，alwaysApply）
 │   ├── trae/cmspro.md                # → .trae/rules/（Trae，alwaysApply）
 │   ├── windsurf/cmspro.md            # → .windsurf/rules/（Windsurf，trigger: always_on）
+│   ├── kiro/cmspro.md                # → .kiro/steering/（Kiro，inclusion: always）
 │   ├── cline/cmspro.md               # → .clinerules/（Cline）
+│   ├── qoder/cmspro.md               # → .qoder/rules/（Qoder，无 frontmatter 始终生效）
 │   ├── github/copilot-instructions.md # → .github/（GitHub Copilot 仓库级指令）
 │   ├── gemini/GEMINI.md              # → 项目根（Gemini CLI，@导入 AGENTS.md）
 │   ├── aider/CONVENTIONS.md          # → 项目根（Aider 自动读取）
@@ -61,7 +63,7 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 ./install.sh <目标项目根目录> --force  # 覆盖部署
 ```
 
-部署产物与工具对照（共 11 个入口，均为薄入口，详细规范仍以包内 `rules/`、`skills/` 为单一来源）：
+部署产物与工具对照（共 13 个入口，均为薄入口，详细规范仍以包内 `rules/`、`skills/` 为单一来源）：
 
 | 工具 | 部署位置 | 加载机制 |
 | --- | --- | --- |
@@ -76,6 +78,8 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 | Gemini CLI | `GEMINI.md`（项目根） | 分层记忆自动加载（`@` 导入 AGENTS.md） |
 | Aider | `CONVENTIONS.md`（项目根） | 自动纳入会话上下文 |
 | CodeBuddy | `.codebuddy/rules/cmspro.md` | 规则目录自动加载 |
+| Kiro | `.kiro/steering/cmspro.md` | `inclusion: always` Steering 自动加载（Kiro 亦原生兼容项目根 `AGENTS.md`，双保险） |
+| Qoder / 通义灵码 | `.qoder/rules/cmspro.md` | 无 frontmatter 规则随项目记忆始终生效（Qoder 亦自动读取项目根 `AGENTS.md`，双保险） |
 
 部署说明：
 
@@ -156,8 +160,9 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 
 ## 版本
 
-- 打包版本：v1.1.0（2026-09-13）
+- 打包版本：v1.2.0（2026-09-13）
 - 变更记录：
+  - v1.2.0：新增 Kiro（`.kiro/steering/`）与 Qoder（`.qoder/rules/`）原生适配模板，入口总数 11 → 13；两者同时原生兼容项目根 `AGENTS.md`，形成双保险。
   - v1.1.0：新增 `install.ps1` / `install.sh` 一键部署脚本与 `adapters/` 八工具入口模板（Cursor 新版、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy），实现各工具自动加载；一键提示词改为优先检测项目内已有规则包。
   - v1.0.0（2026-09-11）：首次打包。
 - 规范来源：CMSPRO v5 开发体系（`.trae/rules` 规则 + `docs/` 规范文档 + 项目技能库）

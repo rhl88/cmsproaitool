@@ -7,8 +7,8 @@
 #
 # 说明：
 #   将规则技能包的各工具入口文件部署到目标项目根目录，实现对 Claude Code、Codex、
-#   Cursor、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy 等
-#   AI 工具的规则自动加载。
+#   Cursor、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy、
+#   Kiro、Qoder 等 AI 工具的规则自动加载。
 #
 # 前提：
 #   本规则包整个目录已位于目标项目内（任意子目录位置均可，如 docs/规则技能包/ 或
@@ -127,6 +127,8 @@ render 'adapters/github/copilot-instructions.md' '.github/copilot-instructions.m
 render 'adapters/gemini/GEMINI.md'               'GEMINI.md'                       'Gemini CLI'
 render 'adapters/aider/CONVENTIONS.md'           'CONVENTIONS.md'                  'Aider'
 render 'adapters/codebuddy/cmspro.md'            '.codebuddy/rules/cmspro.md'      'CodeBuddy'
+render 'adapters/kiro/cmspro.md'                 '.kiro/steering/cmspro.md'        'Kiro'
+render 'adapters/qoder/cmspro.md'                '.qoder/rules/cmspro.md'          'Qoder'
 
 # ---------- 部署结果 ----------
 echo "-- 已部署 ${#DEPLOYED[@]} 个入口 --"

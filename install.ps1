@@ -10,8 +10,8 @@
 
 .DESCRIPTION
     将规则技能包的各工具入口文件部署到目标项目根目录，实现对 Claude Code、Codex、Cursor、
-    Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy 等 AI 工具的
-    规则自动加载。
+    Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy、Kiro、Qoder 等
+    AI 工具的规则自动加载。
 
     前提：本规则包整个目录已位于目标项目内（任意子目录位置均可，如 docs/规则技能包/ 或
     cmspro-rules/）。脚本会自动计算规则包相对项目根的路径，并写入各入口文件。
@@ -141,7 +141,9 @@ $adapterEntries = @(
     @{ Src = 'adapters/github/copilot-instructions.md'; Dst = '.github/copilot-instructions.md';    Label = 'GitHub Copilot' },
     @{ Src = 'adapters/gemini/GEMINI.md';              Dst = 'GEMINI.md';                          Label = 'Gemini CLI' },
     @{ Src = 'adapters/aider/CONVENTIONS.md';          Dst = 'CONVENTIONS.md';                     Label = 'Aider' },
-    @{ Src = 'adapters/codebuddy/cmspro.md';           Dst = '.codebuddy/rules/cmspro.md';         Label = 'CodeBuddy' }
+    @{ Src = 'adapters/codebuddy/cmspro.md';           Dst = '.codebuddy/rules/cmspro.md';         Label = 'CodeBuddy' },
+    @{ Src = 'adapters/kiro/cmspro.md';                Dst = '.kiro/steering/cmspro.md';           Label = 'Kiro' },
+    @{ Src = 'adapters/qoder/cmspro.md';               Dst = '.qoder/rules/cmspro.md';             Label = 'Qoder' }
 )
 foreach ($e in $adapterEntries) {
     Write-Entry -Content (Convert-PackageContent (Read-PackageFile $e.Src)) `
