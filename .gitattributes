@@ -1,0 +1,9 @@
+# 仓库文本文件换行策略（跨平台克隆/检出一致性）
+# 仓库对象库统一存 LF；检出时按文件类型转换
+* text=auto
+
+# shell 脚本任何平台都必须保持 LF（CRLF 会导致 bad interpreter 错误）
+*.sh text eol=lf
+
+# PowerShell 脚本主要运行于 Windows，检出为 CRLF
+*.ps1 text eol=crlf
