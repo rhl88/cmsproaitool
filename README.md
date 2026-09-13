@@ -1,6 +1,6 @@
 # CMSPRO 规则技能包
 
-CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编码工具**开放使用：Claude Code、Cursor、Codex、Trae、龙虾、Hermes、WorkBuddy、WorkCode 等。
+CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编码工具**开放使用：Claude Code、Cursor、Codex、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy、OpenCode、龙虾、Hermes、WorkBuddy、WorkCode 等。
 
 包内所有引用均为相对路径，不含任何环境地址、账号与内部仓库信息，可直接分发与二次定制。
 
@@ -8,10 +8,21 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 
 ```
 规则技能包/
-├── AGENTS.md                # 通用规则入口（自包含核心规则，任何工具可直接使用）
-├── CLAUDE.md                # Claude Code 入口（导入 AGENTS.md）
-├── .cursorrules             # Cursor 入口（核心规则精简版）
-├── README.md                # 本文件：包说明 + 各 AI 工具接入指南
+├── AGENTS.md                # 通用规则入口（自包含核心规则）：Codex/OpenCode/Zed 等 AGENTS.md 约定工具的项目根入口
+├── CLAUDE.md                # Claude Code 入口（@AGENTS.md 导入）
+├── .cursorrules             # Cursor 旧版入口（核心规则精简版）
+├── README.md                # 本文件：包说明 + 接入指南
+├── install.ps1              # 一键部署脚本（Windows PowerShell，含非 ASCII 故保存为 UTF-8 带 BOM）
+├── install.sh               # 一键部署脚本（macOS / Linux / Git Bash）
+├── adapters/                # 各目录式规则工具的入口模板（部署时由脚本替换 {{RULES_ROOT}} 占位符）
+│   ├── cursor/cmspro.mdc             # → .cursor/rules/（Cursor 新版，alwaysApply）
+│   ├── trae/cmspro.md                # → .trae/rules/（Trae，alwaysApply）
+│   ├── windsurf/cmspro.md            # → .windsurf/rules/（Windsurf，trigger: always_on）
+│   ├── cline/cmspro.md               # → .clinerules/（Cline）
+│   ├── github/copilot-instructions.md # → .github/（GitHub Copilot 仓库级指令）
+│   ├── gemini/GEMINI.md              # → 项目根（Gemini CLI，@导入 AGENTS.md）
+│   ├── aider/CONVENTIONS.md          # → 项目根（Aider 自动读取）
+│   └── codebuddy/cmspro.md           # → .codebuddy/rules/（CodeBuddy，alwaysApply）
 ├── rules/                   # 规范文档（单一来源）
 │   ├── 01-CMSPRO开发规范.md           # PHP 开发编码规范（框架保护/日期时间/排查原则/Git 策略/文件编码）
 │   ├── 02-CMSPRO协作总则.md           # 语言要求、核心工作流、技能路由
@@ -32,62 +43,81 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
     └── chinese-code-review/          # 中文代码审查规范
 ```
 
-## 一键使用（推荐）
+## 快速接入（三选一）
 
-无需手动复制任何文件。把下面这段提示词**整段复制**粘贴给你正在使用的 AI 编码工具（Claude Code、Cursor、Codex、Trae、龙虾、Hermes、WorkBuddy、WorkCode 等均可），即可让它自动拉取并加载本包全部规则与技能：
+### 方式一：一键部署（推荐，各工具自动加载）
+
+规则包自带部署脚本，把各工具入口文件自动安装到目标项目根目录。**前提：规则包整个目录已放入目标项目内**（任意子目录位置均可，如 `docs/规则技能包/` 或克隆为 `cmspro-rules/`），脚本会自动计算包相对项目的路径并写入各入口。
+
+```powershell
+# Windows（PowerShell，在规则包目录内执行；若执行策略受限可加 -ExecutionPolicy Bypass）
+.\install.ps1 -ProjectRoot <目标项目根目录>          # 首次部署（已存在的入口自动跳过）
+.\install.ps1 -ProjectRoot <目标项目根目录> -Force    # 规则包升级后覆盖部署
+```
+
+```bash
+# macOS / Linux / Git Bash
+./install.sh <目标项目根目录>          # 首次部署
+./install.sh <目标项目根目录> --force  # 覆盖部署
+```
+
+部署产物与工具对照（共 11 个入口，均为薄入口，详细规范仍以包内 `rules/`、`skills/` 为单一来源）：
+
+| 工具 | 部署位置 | 加载机制 |
+| --- | --- | --- |
+| Codex / OpenCode / Zed / Jules 等 | `AGENTS.md`（项目根） | AGENTS.md 约定自动加载 |
+| Claude Code | `CLAUDE.md`（项目根） | 项目级规则自动加载（`@AGENTS.md` 同目录导入） |
+| Cursor（新版） | `.cursor/rules/cmspro.mdc` | `alwaysApply: true` 规则自动注入 |
+| Cursor（旧版） | `.cursorrules`（项目根） | 兼容旧版机制自动加载 |
+| Trae | `.trae/rules/cmspro.md` | `alwaysApply: true` 规则自动加载 |
+| Windsurf | `.windsurf/rules/cmspro.md` | `trigger: always_on` 自动加载 |
+| Cline | `.clinerules/cmspro.md` | 规则目录自动加载 |
+| GitHub Copilot | `.github/copilot-instructions.md` | 仓库级自定义指令（需在仓库/Copilot 设置中启用 custom instructions） |
+| Gemini CLI | `GEMINI.md`（项目根） | 分层记忆自动加载（`@` 导入 AGENTS.md） |
+| Aider | `CONVENTIONS.md`（项目根） | 自动纳入会话上下文 |
+| CodeBuddy | `.codebuddy/rules/cmspro.md` | 规则目录自动加载 |
+
+部署说明：
+
+- 脚本仅生成上述入口文件，不改动项目其他内容；目标位置已存在同名文件时默认跳过，`-Force` / `--force` 覆盖。
+- 包根 `AGENTS.md` / `CLAUDE.md` / `.cursorrules` 部署时，其中的 `rules/`、`skills/` 相对路径会自动改写为规则包在项目内的实际路径；`adapters/` 模板中的 `{{RULES_ROOT}}` 占位符同理替换。
+- 部署后建议将入口文件随项目提交，团队成员克隆后各工具即可直接自动加载规则。
+- 技能自动触发（可选）：Claude Code 将包内 `skills/` 下各技能目录复制到 `.claude/skills/`；Trae 复制到 `.trae/skills/`；其余工具由 AI 按 `AGENTS.md` 第五章索引按需读取。
+
+### 方式二：手动接入
+
+不使用脚本时，参照上表把包根入口文件与 `adapters/` 对应模板复制到目标位置，并将文件内的 `{{RULES_ROOT}}` 占位符与 `rules/`、`skills/` 相对路径替换为规则包在项目内的实际路径。只使用单一工具时，只复制对应入口即可（如只用 Codex，仅需 `AGENTS.md` 到项目根）。请保持本包目录完整，规则文件中的文档引用按包内相对路径解析。
+
+### 方式三：纯对话兜底（无任何规则配置机制时）
+
+把下面这段提示词**整段复制**粘贴给你正在使用的 AI 编码工具即可，不依赖任何工具的规则配置机制，纯对话生效：
 
 ```text
 请先为我完成规则加载，然后开始工作：
-1. 克隆 CMSPRO 规则技能包到当前环境（已存在则跳过并更新到最新）：
-   git clone https://gitee.com/holley/cmsproaitool.git cmspro-rules
-   （GitHub 源：https://github.com/rhl88/cmsproaitool.git，网络不通时可换用）
-2. 通读 cmspro-rules/AGENTS.md，严格遵守其中全部规则（语言要求、八荣八耻、全局框架保护、关键硬性规范）。
-3. 后续任务命中 AGENTS.md 第五章技能索引的触发条件时，先读取 cmspro-rules/skills/<技能名>/SKILL.md 并严格遵循其流程。
-4. 需要查阅详细规范时，按 AGENTS.md 第三章索引读取 cmspro-rules/rules/ 对应文档。
+1. 检查当前项目内是否已有 CMSPRO 规则技能包（依次查找 docs/规则技能包/、cmspro-rules/ 目录）：
+   - 已存在 → 直接使用该目录，跳过克隆；
+   - 不存在 → 克隆到项目内：git clone https://gitee.com/holley/cmsproaitool.git cmspro-rules
+     （GitHub 源：https://github.com/rhl88/cmsproaitool.git，网络不通时可换用）
+2. 通读规则包根目录的 AGENTS.md，严格遵守其中全部规则（语言要求、八荣八耻、全局框架保护、关键硬性规范）。
+3. 后续任务命中 AGENTS.md 第五章技能索引的触发条件时，先读取规则包 skills/<技能名>/SKILL.md 并严格遵循其流程。
+4. 需要查阅详细规范时，按 AGENTS.md 第三章索引读取规则包 rules/ 对应文档。
 完成后回复「CMSPRO 规则已加载」，然后等待我的任务指令。
 ```
 
 > 说明：
-> - 该提示词不依赖任何工具的规则配置机制，纯对话即可生效，适合所有 AI 工具。
-> - 若工具支持项目级规则（AGENTS.md / .cursorrules / 自定义指令），建议再按下方「接入指南」做持久化配置，避免每次会话重复粘贴。
-> - 在 CMSPRO 项目内使用时，若本包已随项目分发（如位于 `docs/规则技能包/`），可把第 1 步替换为直接读取该目录下的 `AGENTS.md`。
+> - 已按方式一/二完成持久化配置的项目无需再粘贴提示词。
+> - 提示词第 1 步会优先命中随项目分发的规则包（如 `docs/规则技能包/`），避免重复克隆。
+> - 技能使用：任务命中技能触发条件时，AI 会读取对应 `skills/<技能名>/SKILL.md` 并遵循其流程（触发条件清单见 `AGENTS.md` 第五章）。
 
-## 接入指南
-
-统一原则：**规则以 `AGENTS.md` 为单一入口**，各工具按下表方式接入；技能目录 `skills/` 保持包内相对结构整体复制，技能内文引用的规范路径（`rules/...`）才能正确解析。
-
-### Claude Code
-
-1. 将本包 `CLAUDE.md` 复制到**项目根**（自动加载，内容会导入 `AGENTS.md`，两者需保持同目录或按实际路径调整 `@` 导入）。
-2. 技能自动触发（可选）：将 `skills/` 下各技能目录复制到项目 `.claude/skills/` 或用户级 `~/.claude/skills/`。
-
-### Codex（OpenAI）
-
-1. 将本包 `AGENTS.md` 复制到**项目根**，Codex 原生自动加载。
-2. 技能：Codex 无原生技能系统，AI 会按 AGENTS.md 第五章索引按需读取对应 `skills/<技能名>/SKILL.md`；请保持 `rules/` 与 `skills/` 相对结构完整。
-
-### Cursor
-
-1. 旧版：将本包 `.cursorrules` 复制到**项目根**。
-2. 新版（推荐）：在项目 `.cursor/rules/` 下新建规则文件（如 `cmspro.mdc`，frontmatter 设置 `alwaysApply: true`），内容引用或粘贴 `AGENTS.md`。
-3. 请保持本包目录完整，规则文件中的文档引用按包内相对路径解析。
-
-### Trae
-
-1. 将 `rules/01-CMSPRO开发规范.md`、`rules/02-CMSPRO协作总则.md`、`rules/03-通用编码准则.md` 复制到项目 `.trae/rules/`（文件头部自带 `alwaysApply: true`）。
-2. 技能自动触发（可选）：将 `skills/` 下各技能目录复制到 `.trae/skills/`。
-
-### 其他工具（龙虾、Hermes、WorkBuddy、WorkCode 等）
+## 不支持上述任何机制的工具（龙虾、Hermes、WorkBuddy、WorkCode 等）
 
 按工具能力三选一：
 
 | 工具能力                                 | 接入方式                                                                 |
 | ---------------------------------------- | ------------------------------------------------------------------------ |
-| 支持 AGENTS.md 约定                       | 将 `AGENTS.md` 放项目根                                                  |
-| 支持自定义系统提示 / 项目规则 / 自定义指令 | 将 `AGENTS.md` 全文粘贴到对应配置                                        |
-| 均不支持                                  | 每次任务开始时指示 AI：「请先阅读 docs/规则技能包/AGENTS.md 并严格遵守」 |
-
-技能使用：任务命中技能触发条件时，指示 AI 读取对应 `skills/<技能名>/SKILL.md` 并遵循其流程（触发条件清单见 `AGENTS.md` 第五章）。
+| 支持 AGENTS.md 约定                       | 方式一/二部署 `AGENTS.md` 到项目根                                        |
+| 支持自定义系统提示 / 项目规则 / 自定义指令 | 将 `AGENTS.md` 全文粘贴到对应配置                                         |
+| 均不支持                                  | 每次任务开始时用「方式三」提示词，或指示 AI：「请先阅读规则包 AGENTS.md 并严格遵守」 |
 
 ## 规则文件说明
 
@@ -119,11 +149,15 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 ## 使用建议
 
 - **保持包结构完整**：`rules/` 与 `skills/` 的相对位置不变，包内所有交叉引用才能解析。
-- **入口文件可按工具裁剪**：只用 Codex 可删去 `CLAUDE.md` 与 `.cursorrules`；只用 Claude Code 可删去 `.cursorrules`。
+- **入口文件可按工具裁剪**：只用部分工具时，仅部署对应入口（见方式一对照表），不用的入口不部署即可。
 - **环境信息自行填写**：`rules/01-CMSPRO开发规范.md` 中「当前开发信息」与「双远程配置」为占位符，由使用者按实际环境填写。
-- **更新方式**：规范文档升级后，替换 `rules/` 对应文件并同步 `AGENTS.md` 摘要；新增问题案例按 `rules/CMSPRO-v5-应用开发常见问题.md` 文末模板追加；新增技能在 `skills/` 建目录并同步 `AGENTS.md` 第五章与 `rules/02-CMSPRO协作总则.md` 路由表。
+- **更新方式**：规范文档升级后，替换 `rules/` 对应文件并同步 `AGENTS.md` 摘要，同时同步 `adapters/` 各精简版入口（若核心规则有变）与包根 `.cursorrules`；新增问题案例按 `rules/CMSPRO-v5-应用开发常见问题.md` 文末模板追加；新增技能在 `skills/` 建目录并同步 `AGENTS.md` 第五章与 `rules/02-CMSPRO协作总则.md` 路由表；升级后在各项目内重新执行部署脚本并加 `-Force` / `--force` 覆盖。
+- **编码说明**：包内所有文件为 UTF-8 无 BOM；唯一例外是 `install.ps1` 为 UTF-8 带 BOM——Windows PowerShell 5.1 对无 BOM 的 UTF-8 脚本会按 ANSI 误读中文导致语法错误，微软官方要求含非 ASCII 的 `.ps1` 必须带 BOM；该文件为部署工具，不参与 Web 输出。
 
 ## 版本
 
-- 打包版本：v1.0.0（2026-09-11）
+- 打包版本：v1.1.0（2026-09-13）
+- 变更记录：
+  - v1.1.0：新增 `install.ps1` / `install.sh` 一键部署脚本与 `adapters/` 八工具入口模板（Cursor 新版、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy），实现各工具自动加载；一键提示词改为优先检测项目内已有规则包。
+  - v1.0.0（2026-09-11）：首次打包。
 - 规范来源：CMSPRO v5 开发体系（`.trae/rules` 规则 + `docs/` 规范文档 + 项目技能库）

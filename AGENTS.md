@@ -2,7 +2,7 @@
 
 > **适用工具**：Claude Code、Cursor、Codex、Trae、龙虾、Hermes、WorkBuddy、WorkCode 等任何支持项目规则 / 自定义指令 / AGENTS.md 约定的 AI 编码工具。
 >
-> **用法**：支持 AGENTS.md 的工具（Codex 等）放在项目根自动加载；其余工具将本文件内容粘贴到工具的自定义规则 / 系统提示，或要求 AI 在每次任务开始前先读取本文件。本文件自包含核心规则，详细规范按第三章索引按需加载。
+> **用法**：支持 AGENTS.md 的工具（Codex 等）放在项目根自动加载；其余工具将本文件内容粘贴到工具的自定义规则 / 系统提示，或要求 AI 在每次任务开始前先读取本文件；也可用包内 `install.ps1` / `install.sh` 一键把各工具入口部署到项目根（详见 README）。本文件自包含核心规则，详细规范按第三章索引按需加载。
 
 ***
 
@@ -116,6 +116,17 @@
 ├── CLAUDE.md                # Claude Code 入口（导入本文件）
 ├── .cursorrules             # Cursor 入口（核心规则精简版）
 ├── README.md                # 包说明 + 各 AI 工具接入指南
+├── install.ps1              # 一键部署脚本（Windows PowerShell）
+├── install.sh               # 一键部署脚本（macOS / Linux / Git Bash）
+├── adapters/                # 各目录式规则工具的入口模板（含 RULES_ROOT 占位符）
+│   ├── cursor/cmspro.mdc               # → .cursor/rules/
+│   ├── trae/cmspro.md                  # → .trae/rules/
+│   ├── windsurf/cmspro.md              # → .windsurf/rules/
+│   ├── cline/cmspro.md                 # → .clinerules/
+│   ├── github/copilot-instructions.md  # → .github/
+│   ├── gemini/GEMINI.md                # → 项目根（Gemini CLI）
+│   ├── aider/CONVENTIONS.md            # → 项目根（Aider）
+│   └── codebuddy/cmspro.md             # → .codebuddy/rules/
 ├── rules/                   # 规范文档（单一来源）
 │   ├── 01-CMSPRO开发规范.md
 │   ├── 02-CMSPRO协作总则.md
