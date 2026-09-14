@@ -1876,6 +1876,49 @@ class Install
 
 **升级**：Install::upgrade() → 增量迁移 → 更新菜单/权限
 
+### ⚠️ 升级文件覆盖语义与废弃文件清理（强制）
+
+**升级采用「解压覆盖」而非「先删后装」**：系统将新版本包直接解压覆盖到应用目录（`ZipArchive::extractTo`），包内同名文件被覆盖、新增文件写入，但**新版本中已删除的旧文件会残留在应用目录中**。各位置行为差异：
+
+| 位置 | 升级行为 |
+| --- | --- |
+| `app/Apps/{AppName}/` 源码目录 | 解压覆盖，新版本已删除的旧文件**残留** |
+| `public/apps/{appId}/` 资源侧 | 先删旧（`removeAssetSymlink()`）再重新发布，**不残留** |
+| `storage/`、`public/uploads/` 运行时数据 | 不在覆盖范围，始终保留 |
+
+因此，应用发生**代码结构变更**（文件删除、重命名、目录调整）时，必须在 `Install::upgrade()` 中维护「废弃文件清单」执行清理，否则残留的旧文件将成为死代码，甚至与新版类冲突：
+
+```php
+public function upgrade(string $fromVersion, string $toVersion): void
+{
+    $appPath = __DIR__;
+
+    // 废弃文件清单：新版本中已不存在的旧结构文件
+    $obsolete = [
+        'Services/OldService.php',
+        'Http/Controllers/LegacyController.php',
+    ];
+    foreach ($obsolete as $rel) {
+        $path = $appPath.'/'.$rel;
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    // 复杂结构迁移按版本区间处理
+    if (version_compare($fromVersion, '1.2.0', '<')) {
+        @rmdir($appPath.'/Legacy');
+    }
+}
+```
+
+**要点**：
+
+1. **执行时序安全**：`Install::upgrade()` 在新版文件解压就位之后、数据库事务提交之前调用，且应用处于禁用状态（升级强制禁用，运行时未加载应用代码），此时删除旧文件不会误删新版文件，也不会遇到文件锁。
+2. **推荐「全量废弃清单 + 版本判断」**：前端支持逐级升级（如 v1.0→v1.1→v1.2 每步触发一次 `upgrade()`），全量清单在任何升级路径下都收敛到正确状态，不要为每个中间版本单独写清理逻辑。
+3. **不要清理 `public/apps/{appId}/`**：资源侧由系统在升级时先删旧再重新发布，应用 `Assets/` 中删除旧资源后发布侧自动同步。
+4. **运行时数据禁止列入废弃清单**：`storage/`、`public/uploads/` 等运行时目录不受升级覆盖影响，删除将丢失用户数据。
+
 ### ⚠️ 卸载规范
 
 **`uninstall()` 方法中禁止删除数据库表。** 系统卸载流程是两步走：

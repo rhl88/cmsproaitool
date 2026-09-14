@@ -396,6 +396,68 @@ table.render({
 
 ***
 
+## 14. 应用升级采用解压覆盖，新版本删除的旧文件残留
+
+### 现象
+
+应用新版本删除了某个旧文件（如 `a.php`）或调整了目录结构，升级后检查发现旧文件仍留在 `app/Apps/{AppName}/` 目录中；若旧文件与新版类名冲突或被 autoload 命中，可能引发难以排查的异常行为。
+
+### 根因
+
+升级流程（`AppInstallerService::executeUpgrade()`）使用 `$zip->extractTo($appPath)` 将新版本包**直接解压覆盖**到现有应用目录。`extractTo` 的语义是：包内同名文件覆盖、新增文件写入，**不删除**包中不存在的旧文件。
+
+| 位置 | 升级行为 |
+| --- | --- |
+| `app/Apps/{AppName}/` 源码目录 | 解压覆盖，新版本已删除的旧文件**残留** |
+| `public/apps/{appId}/` 资源侧 | 先删旧（`removeAssetSymlink()`）再重新发布，**不残留** |
+
+只有卸载/彻底删除（`File::deleteDirectory($appPath)`）才会清空应用目录，升级不走该路径。
+
+### 修复方案（应用内，零框架改动）
+
+在应用 `Install.php` 中实现 `upgrade($fromVersion, $toVersion)` 方法，维护「废弃文件清单」执行清理：
+
+```php
+public function upgrade(string $fromVersion, string $toVersion): void
+{
+    $appPath = __DIR__;
+    $obsolete = [
+        'Services/OldService.php',  // 新版本已废弃的文件
+    ];
+    foreach ($obsolete as $rel) {
+        $path = $appPath.'/'.$rel;
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+}
+```
+
+执行时序安全：此时新版文件已解压就位、数据库事务尚未提交，且应用处于禁用状态（运行时未加载应用代码），删除旧文件不会误删新版文件、不会遇到文件锁。
+
+### 验证
+
+升级完成后确认废弃文件已清理：
+
+```bash
+# 应提示文件不存在
+ls app/Apps/{AppName}/Services/OldService.php
+```
+
+应用测试中可断言（测试须位于应用自身 `Tests/` 目录）：
+
+```php
+$this->assertFileDoesNotExist(app_path('Apps/{AppName}/Services/OldService.php'));
+```
+
+### 通用经验
+
+- 应用代码结构变更（文件删除/重命名/目录调整）必须在 `Install::upgrade()` 中维护「全量废弃清单 + 版本判断」，任何升级路径都收敛到正确状态；不要依赖升级自动清理旧文件。
+- 只有 `public/apps/{appId}/` 资源侧由系统先删后发；`storage/`、`public/uploads/` 等运行时数据不在覆盖范围，禁止列入废弃清单。
+- 彻底干净的替代路径是「卸载后重装」（清空应用目录），但会丢失运行时数据，仅在可接受时使用。
+
+***
+
 ## 追加模板
 
 新问题追加时复制本节，填写即可：
