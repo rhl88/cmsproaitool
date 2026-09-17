@@ -81,7 +81,7 @@
    - 框架级调整在框架主仓库（`code` 目录）提交；双远程同步推送，禁止只推单边。
    - 提交信息遵循 `type(scope): subject` 中文格式（如 `feat(demo): 新增项目标签筛选功能`），聚焦"为什么改"。
    - **禁止未经用户确认自动 push**。
-4. **测试落点**：测试「测试什么代码」决定「放在哪里」——应用测试放 `app/Apps/{AppName}/Tests/`，禁止放入框架 `tests/`；应用级测试在应用自身 Tests 目录单独执行（如 `php artisan test app/Apps/CmsproDemo/Tests`），全量回归仅用于系统框架。
+4. **测试落点**：测试「测试什么代码」决定「放在哪里」——应用测试放 `app/Apps/{AppName}/Tests/`，禁止放入框架 `tests/`；应用级测试在应用自身 Tests 目录单独执行（如 `php artisan test app/Apps/CmsproDemo/Tests`）；框架回归（`php artisan test` / `composer test`）仅用于系统框架，不收集 `app/Apps/*/Tests`。
 5. **文件编码**：所有代码与模板文件必须以「UTF-8 无 BOM」保存。
 6. **Blade 模板**：`<script type="text/html">` 块必须用 `@verbatim ... @endverbatim` 包裹；Blade 注释中禁止出现 `@verbatim` 等指令关键字；普通 `<script>` 中 Layui 模板的 `{{ }}` 需用 `@{{ }}` 转义。
 7. **路径存储**：数据库中的应用路径字段一律存**相对路径**（如 `app/Apps/{AppName}`），禁止绝对路径。

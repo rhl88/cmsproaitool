@@ -4244,6 +4244,58 @@ window.location.href = '/user/login?redirect=' + encodeURIComponent(window.locat
 2. 如果某个 `$.ajax` 的 `error` 回调已解析 `xhr.responseText`，需在回调开头加 `if (xhr.status === 401) return;`，避免与全局 401 处理重复弹窗
 3. `redirect` 参数确保用户登录后能返回原页面，**不可省略**
 
+#### 记住登录状态（Remember Me）
+
+Session 超时控制的是会话容器本身的存活时长，对游客和登录用户一视同仁——Session 过期后所有登录状态都会丢失。Laravel 内置的 Remember Me 机制与此解耦：启用后额外下发独立的 `remember_{guard}_*` Cookie（默认 5 年有效）并在用户表写入 `remember_token` 字段；即使 Session 过期，Remember Cookie 仍可自动重建登录状态。
+
+**机制对比**：
+
+| 维度 | Session 超时 | Remember Me |
+|------|-------------|-------------|
+| 控制对象 | 会话容器（Cookie + 后端存储） | 登录状态持久化 |
+| 对游客 | 同样生效（游客也有 Session） | 不生效（游客无 Remember Cookie） |
+| 对登录用户 | Session 过期即登出 | Session 过期后自动重建登录 |
+| 配置位置 | 后台 `setting/index` 会话超时 | `attempt()` 第二参数 |
+| 有效期 | 由 `session.lifetime` 控制 | 独立 Cookie（默认 5 年） |
+
+**数据库要求**：用户表必须包含 `remember_token` 字段（`VARCHAR(100) NULL`）。系统 `users` 和 `admin_users` 表均已包含此字段；应用自建用户表需自行添加迁移：
+
+```php
+Schema::table('your_users', function (Blueprint $table) {
+    $table->rememberToken()->comment('记住我Token');
+});
+```
+
+**后端实现**（`attempt()` 第二参数 `$remember`）：
+
+```php
+// 读取前端勾选值，传入 attempt 第二参数
+$remember = (bool) $request->input('remember');
+
+if (Auth::guard('web')->attempt($credentials, $remember)) {
+    $request->session()->regenerate();
+    // ...
+}
+```
+
+> `$remember` 为 `true` 时，Laravel 下发 `remember_web_*` Cookie 并写入 `users.remember_token`；为 `false` 时两者均不产生。
+
+**前端实现**（勾选框默认勾选）：
+
+```html
+<!-- 原生 HTML -->
+<input type="checkbox" name="remember" value="1" checked> 记住登录状态
+
+<!-- Layui 复选框（lay-skin="primary"） -->
+<input type="checkbox" name="remember" value="1" lay-skin="primary" title="记住登录状态" checked>
+```
+
+> **⚠️ Layui 复选框**：使用 `lay-skin="primary"` 的 Layui 复选框必须在页面加载时调用 `form.render()` 才能正确渲染，否则仅显示为原生样式。
+
+**前后台共享 Session 行为**：CmsPro 前后台通过不同 Guard（`web` vs `admin`）区分身份，Remember Cookie 按 Guard 区分（`remember_web_*` / `remember_admin_*`）互不干扰。登出时调用 `Auth::guard()->logout()` 默认清除当前 Guard 的 Remember Token + Cookie，不影响另一端的登录状态。
+
+**应用自定义前端登录**：应用自带登录页（如 CmsproDemo、CmsproForum）复用系统 `users` 表与 `web` Guard，可直接使用 `Auth::guard('web')->attempt($credentials, $request->filled('remember'))` 传入勾选值，无需额外处理。
+
 #### AJAX 错误处理：显示服务端返回的错误信息
 
 后台 API 返回非 2xx 状态码（400、422、500 等）时，jQuery 会进入 `error` 回调。**禁止在 `error` 回调中硬编码"请求失败"**，应解析 `xhr.responseText` 中的 `message` 字段显示给用户：

@@ -247,7 +247,7 @@ $order->update(['paid_at' => $result['paid_at']]);  // 2026-05-23T00:16:39+08:00
 ### 提交流程（强制）
 
 1. 应用调整完成、**应用级测试通过**、`doc/` 文档同步更新后，在**应用目录内**（而非项目根目录）执行 git 操作
-   > **应用级测试**须在应用自身 `Tests` 目录单独执行，例如在 `code` 目录运行 `php artisan test app/Apps/CmsproDemo/Tests`。`php artisan test` 全量回归**仅用于系统框架**，不作为应用调整的通过依据
+   > **应用级测试**须在应用自身 `Tests` 目录单独执行，例如在 `code` 目录运行 `php artisan test app/Apps/CmsproDemo/Tests`。`php artisan test` **仅用于系统框架回归**，不作为应用调整的通过依据
 2. 先执行 `git status` / `git diff` 确认本次变更清单
 3. `git add` 仅添加本次修改涉及的具体文件，**禁止** **`git add -A`** **/** **`git add .`**（避免带入无关文件）
 4. 提交信息遵循 `chinese-commit-conventions` 规范（`type(scope): subject` 格式，scope 用应用名，如 `feat(demo): 新增项目标签筛选功能`），中文描述，聚焦"为什么改"
@@ -311,8 +311,8 @@ $order->update(['paid_at' => $result['paid_at']]);  // 2026-05-23T00:16:39+08:00
 
 ### 提交流程（强制）
 
-1. 变更完成、`php artisan test` 全量回归通过后，在 `code` 目录内执行 git 操作
-   > **全量回归仅用于系统框架**（`tests/` 下的 Unit / Feature 测试）。框架级调整只需本步全量回归；若同时涉及应用调整，应用级测试须在应用自身 `Tests` 目录单独执行（见第 3 章），不在全量回归范围内一并带过
+1. 变更完成、`php artisan test` 框架回归通过后，在 `code` 目录内执行 git 操作
+   > **框架回归仅用于系统框架**（`tests/` 下的 Unit / Feature 测试）。框架级调整只需本步框架回归；若同时涉及应用调整，应用级测试须在应用自身 `Tests` 目录单独执行（见第 3 章），不在框架回归范围内一并带过
 2. 先 `git status` / `git diff` 确认变更清单，甄别无关变更
 3. `git add` 仅添加本次调整涉及的具体文件，**禁止** **`git add -A`** **/** **`git add .`**——特别注意 `app/Apps/` 下除 `Versionmgr` 外均已忽略，禁止强制添加（`git add -f`）
 4. 提交信息遵循 `chinese-commit-conventions` 规范（`type(scope): subject` 格式，如 `feat(framework): ...`、`fix(pay): ...`），中文描述，聚焦"为什么改"
@@ -355,7 +355,7 @@ $order->update(['paid_at' => $result['paid_at']]);  // 2026-05-23T00:16:39+08:00
 
 #### 归属判定
 
-* **应用测试** → 放 `app/Apps/{AppName}/Tests/`（phpunit.xml 的 `Apps` 套件），随该应用独立仓库提交
+* **应用测试** → 放 `app/Apps/{AppName}/Tests/`，随该应用独立仓库提交；执行方式为在各应用 `Tests` 目录单独运行（如 `php artisan test app/Apps/CmsproDemo/Tests`），不纳入框架 `php artisan test` 默认执行范围
   * 判定：`use`/`new`/`assert` 涉及的对象来自 `App\Apps\{AppName}\` 命名空间，或以 `Tests\Unit\CmsproXxx`、`Tests\Apps\CmsproXxx` 等老头部 namespace 命名的既有应用测试，均属应用测试
 * **框架测试** → 放 `tests/Unit` 或 `tests/Feature`（及其合法子目录 `Helpers`/`Services`/`Versionmgr`），`namespace Tests\Unit` / `Tests\Feature`
   * 判定：测试的是框架级代码；**Versionmgr 随框架提交，其测试保留在 `tests/Unit/Versionmgr`，不迁移**
@@ -373,21 +373,21 @@ git ls-files "tests/*" | grep -iE "tests/(Unit|Feature|Apps)/Cmspro" || true
 
 #### 自检失败口径
 
-* `php artisan test` 运行时，应用测试必须出现在 `Apps` 套件徽标下；若出现在 `Unit`/`Feature` 徽标下，说明落点错误
-* 执行全量回归前，先跑上述扫描命令确认 `tests/` 无应用归属文件，再运行 `php artisan test`
+* `php artisan test` 仅运行框架测试（`Unit`/`Feature` 套件），不收集 `app/Apps/*/Tests`；若应用测试出现在 `Unit`/`Feature` 套件中，说明落点错误
+* 执行框架回归前，先跑上述扫描命令确认 `tests/` 无应用归属文件，再运行 `php artisan test`
 * 发现存量违规：就近迁移至对应 `app/Apps/{AppName}/Tests/`（如需新建 Tests 目录，参照已迁移应用的命名空间与 autoload），并在该应用独立仓库内提交，禁止长期滞留框架 `tests/`
 
 #### 机器强制校验（强制）
 
-框架仓库内置守卫脚本 `code/guard-app-tests.php`，并已接入 `composer.json` 的 `scripts.test`：执行 `composer test`（含 `php artisan test` 全量回归）前，会先用机械特征扫描 `tests/Unit` 与 `tests/Feature`，发现任何目录段以 `Cmspro` 开头的文件即以非 0 退出码中断，防止应用测试误入框架。
+框架仓库内置守卫脚本 `code/guard-app-tests.php`，并已接入 `composer.json` 的 `scripts.test`：执行 `composer test` 前，会先用机械特征扫描 `tests/Unit` 与 `tests/Feature`，发现任何目录段以 `Cmspro` 开头的文件即以非 0 退出码中断，防止应用测试误入框架。
 
 ```bash
 composer test
 ```
 
-机器强制的意义：不依赖开发者自觉跑手动自查命令，一旦 `tests/` 出现应用归属文件，全量回归直接失败，倒逼就地迁移。守卫使用路径段机械特征（与命名空间解析无关），不放过漏跑自查的场景；若确有合法的框架级例外（非应用测试亦以 `Cmspro` 命名），须先说明理由并调整守卫，禁止临时绕过。
+机器强制的意义：不依赖开发者自觉跑手动自查命令，一旦 `tests/` 出现应用归属文件，框架回归直接失败，倒逼就地迁移。守卫使用路径段机械特征（与命名空间解析无关），不放过漏跑自查的场景；若确有合法的框架级例外（非应用测试亦以 `Cmspro` 命名），须先说明理由并调整守卫，禁止临时绕过。
 
-> **全量回归口径**：`composer test` 会连带运行 `Apps` 套件（`app/Apps/*/Tests`，框架外的应用测试）。如需「仅框架」回归，用 `php artisan test --testsuite=Unit --testsuite=Feature`；日常全量可用 `composer test`。
+> **框架回归口径**：`php artisan test` 与 `composer test` 仅运行框架测试（`Unit` + `Feature` 套件），不收集 `app/Apps/*/Tests`。应用测试须在各应用自身 `Tests` 目录单独执行（如 `php artisan test app/Apps/CmsproDemo/Tests`），不纳入框架默认回归范围。
 
 ***
 

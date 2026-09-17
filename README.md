@@ -160,8 +160,9 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 
 ## 版本
 
-- 打包版本：v1.2.0（2026-09-13）
+- 打包版本：v1.2.1（2026-09-17）
 - 变更记录：
+  - v1.2.1：同步上游源更新——`rules/CmsPro-v5-应用开发文档.md` 补充「记住登录状态（Remember Me）」章节；测试回归口径由「全量回归」统一为「框架回归」（`php artisan test` / `composer test` 仅运行 `Unit`/`Feature` 套件，不收集 `app/Apps/*/Tests`，应用测试在应用自身 Tests 目录单独执行），同步更新 `rules/01-CMSPRO开发规范.md` 与 `AGENTS.md` 摘要。
   - v1.2.0：新增 Kiro（`.kiro/steering/`）与 Qoder（`.qoder/rules/`）原生适配模板，入口总数 11 → 13；两者同时原生兼容项目根 `AGENTS.md`，形成双保险。
   - v1.1.0：新增 `install.ps1` / `install.sh` 一键部署脚本与 `adapters/` 八工具入口模板（Cursor 新版、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy），实现各工具自动加载；一键提示词改为优先检测项目内已有规则包。
   - v1.0.0（2026-09-11）：首次打包。
