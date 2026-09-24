@@ -1810,6 +1810,14 @@ class Hooks
 
 > 该钩子允许应用注入自定义统计卡片（如订单数、营收额等），返回的 `$stats` 数组会直接作为响应数据。
 
+#### 已实现：消息通知（notifications.* 系列）
+
+| 钩子点                       | 类型     | 参数    | 触发位置                              |
+| --------------------------- | ------ | ----- | ----------------------------------- |
+| `admin.notifications.todos` | Filter | $todos | `NotificationService::todos` 聚合各应用待办时 |
+
+> 该钩子允许应用注入聚合型待办条目，返回的 `$todos` 数组会作为通知中心待办数据源；注册时第 4 个参数必须传 app_id，应用禁用/卸载后其待办自动摘除。接入方法与字段契约详见本章末尾「### 消息通知（通知中心扩展点）」小节。
+
 #### 文档声明但尚未实现（应用暂不可挂载）
 
 > 当前无。所有规划的系统级钩子点均已落地。
@@ -1827,6 +1835,47 @@ $hookManager->doAction('blog.post.published', $post);
 // 触发 Filter
 $query = $hookManager->applyFilter('blog.post.query', $query);
 ```
+
+### 消息通知（通知中心扩展点）
+
+后台顶栏提供统一通知入口（铃铛徽标 + 下拉面板 + 独立通知中心页 `/admin/notifications`），支持两类来源，应用均可接入：
+
+**1. 推送型通知（事件写入）**：适合审核结果、系统公告、异步任务完成等有历史价值的消息。
+
+```php
+use App\Services\NotificationService;
+
+app(NotificationService::class)->push([
+    'title' => '提现申请已通过',              // 必填
+    'content' => '开发者 xxx 的 ¥200 提现已完成转账', // 可选摘要
+    'link' => '/admin/appstore/withdrawals', // 可选，跳转相对路径
+    'level' => 'success',                    // 可选：info/success/warning/error
+    'app_id' => 'appstore',                  // 应用推送必传，卸载时自动清理
+    'permission_code' => 'appstore.withdrawal.review', // 可选，无则全员可见
+]);
+```
+
+**2. 聚合型待办（实时查询）**：适合「待审核」类条目，数量实时准确、归零自动消失，应用无需埋点。在应用 `Hooks.php` 中注册 Filter：
+
+```php
+$hooks->registerFilter('admin.notifications.todos', function ($todos) {
+    $todos[] = [
+        'key'   => 'cmspro.comment.pending',      // 必填，全局唯一：{app_id}.{业务标识}
+        'title' => '评论待审核',                    // 必填
+        'count' => \App\Apps\CmsproComment\Models\Comment::where('status', 0)->count(), // 必填，非负整数
+        'link'  => '/admin/cmspro/comment/comments?status=0', // 必填，相对路径
+        'permission_code' => 'cmspro.comment.audit', // 可选
+    ];
+    return $todos;
+}, 10, 'cmspro.comment'); // 第 4 个参数必须传 app_id，应用禁用/卸载自动摘除
+```
+
+**契约与生命周期**：
+
+- 待办条目字段：`key`/`title`/`count`/`link` 必填，`permission_code` 可选；框架按 `key` 去重，单个应用钩子抛异常不影响其他应用
+- 权限过滤：`permission_code` 非空的条目仅对拥有该权限码的管理员（或超管）可见，后端与前端双重过滤
+- 已读：推送型按管理员独立已读（逐条/全部）；聚合型无已读概念
+- 卸载清理：应用卸载时框架自动删除其 `app_id` 的推送型通知；应用禁用时其待办 Filter 自动摘除
 
 ***
 
