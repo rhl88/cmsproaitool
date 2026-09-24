@@ -3,7 +3,7 @@
 # CMSPRO 规则技能包一键部署脚本（macOS / Linux / Git Bash 版）
 #
 # 用法：
-#   ./install.sh <目标项目根目录> [--force]
+#   ./install.sh <目标项目根目录> [--tools <工具标识>[,<工具标识>...]] [--force]
 #
 # 说明：
 #   将规则技能包的各工具入口文件部署到目标项目根目录，实现对 Claude Code、Codex、
@@ -17,26 +17,65 @@
 # 行为：
 #   - 仅生成入口文件，不改动项目其他内容；
 #   - 目标位置已存在同名文件时默认跳过，加 --force 覆盖；
+#   - 加 --tools 可仅部署指定工具的入口（当前用什么工具就部署什么工具的入口，
+#     避免项目里出现一堆无关工具的规则目录）；不传则全量部署；
 #   - 包根 AGENTS.md / CLAUDE.md / .cursorrules 部署时将其中 `rules/`、`skills/`
 #     相对路径改写为规则包在项目内的实际路径；adapters/ 模板中的 {{RULES_ROOT}}
 #     占位符同理替换。
+#
+# 支持的工具标识（--tools 取值，逗号分隔，大小写不敏感）：
+#   codex / claude / cursor / trae / windsurf / cline / github / gemini /
+#   aider / codebuddy / kiro / qoder
+# 依赖说明：claude（CLAUDE.md）与 gemini（GEMINI.md）入口通过 @ 导入 AGENTS.md，
+#   指定其一时会连带部署 AGENTS.md；cursor 同时部署新旧版入口。
 
 set -euo pipefail
 
 # ---------- 参数解析 ----------
-if [ $# -lt 1 ]; then
-    echo "用法: ./install.sh <目标项目根目录> [--force]" >&2
+usage() {
+    echo "用法: ./install.sh <目标项目根目录> [--tools <工具标识>[,<工具标识>...]] [--force]" >&2
+}
+
+PROJECT_ROOT=""
+FORCE=0
+TOOLS=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -f|--force) FORCE=1 ;;
+        -t|--tools)
+            [ $# -ge 2 ] || { echo "错误：--tools 需要一个参数" >&2; exit 1; }
+            TOOLS="$2"; shift ;;
+        --tools=*) TOOLS="${1#--tools=}" ;;
+        -h|--help) usage; exit 0 ;;
+        *)
+            if [ -z "$PROJECT_ROOT" ]; then
+                PROJECT_ROOT="$1"
+            else
+                echo "错误：未知参数：$1" >&2; usage; exit 1
+            fi ;;
+    esac
+    shift
+done
+
+if [ -z "$PROJECT_ROOT" ]; then
+    usage
     exit 1
 fi
 
-PROJECT_ROOT="$1"
-FORCE=0
-for arg in "${@:2}"; do
-    case "$arg" in
-        -f|--force) FORCE=1 ;;
-        *) echo "错误：未知参数：$arg" >&2; exit 1 ;;
-    esac
-done
+# ---------- 工具标识校验 ----------
+VALID_TOOLS="codex,claude,cursor,trae,windsurf,cline,github,gemini,aider,codebuddy,kiro,qoder"
+if [ -n "$TOOLS" ]; then
+    # 规整：转小写、去空白
+    TOOLS="$(printf '%s' "$TOOLS" | tr 'A-Z' 'a-z' | tr -d ' ')"
+    OLD_IFS="$IFS"; IFS=','
+    for t in $TOOLS; do
+        case ",$VALID_TOOLS," in
+            *",$t,"*) ;;
+            *) echo "错误：不支持的工具标识：$t（支持：$VALID_TOOLS）" >&2; exit 1 ;;
+        esac
+    done
+    IFS="$OLD_IFS"
+fi
 
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -101,34 +140,51 @@ render() {
     DEPLOYED+=("[$label] $dst_rel")
 }
 
+# deploy_if <属主工具(逗号分隔)> <源文件> <目标> <标签> [部署说明]
+# 未指定 --tools 时全量部署；指定时仅部署属主命中的入口
+deploy_if() {
+    local owners="$1"; shift
+    if [ -n "$TOOLS" ]; then
+        local o OLD_IFS="$IFS"; IFS=','
+        for o in $owners; do
+            case ",$TOOLS," in *",$o,"*) IFS="$OLD_IFS"; render "$@"; return ;; esac
+        done
+        IFS="$OLD_IFS"
+        return
+    fi
+    render "$@"
+}
+
 # ---------- 开始部署 ----------
 echo "== CMSPRO 规则技能包一键部署 =="
 echo "目标项目根：$PROJECT_ROOT"
 echo "规则包路径：$RULES_ROOT"
+if [ -n "$TOOLS" ]; then
+    echo "部署范围：指定工具（$TOOLS）"
+else
+    echo "部署范围：全部工具（如仅需当前工具入口，可加 --tools <工具标识>）"
+fi
 echo ""
 
 AGENTS_NOTE="> **部署说明**：本文件由规则技能包部署脚本生成，规则包位于 \`$RULES_ROOT/\`；下文所述「本包」即该目录，文内 \`rules/\`、\`skills/\` 等相对路径已改写为项目内实际路径。"
 
-# 1) AGENTS.md：Codex / OpenCode / Zed / Jules 等 AGENTS.md 约定工具（项目根）
-render 'AGENTS.md' 'AGENTS.md' 'Codex/OpenCode/Zed 等' "$AGENTS_NOTE"
+# AGENTS.md：Codex/OpenCode/Zed 等约定工具（项目根）；亦被 claude / gemini 入口 @ 导入依赖
+# CLAUDE.md / GEMINI.md 通过 @ 导入 AGENTS.md，二者指定其一时连带部署 AGENTS.md
+deploy_if 'codex,claude,gemini' 'AGENTS.md' 'AGENTS.md' 'Codex/OpenCode/Zed 等' "$AGENTS_NOTE"
+deploy_if 'claude'              'CLAUDE.md' 'CLAUDE.md' 'Claude Code'
+deploy_if 'cursor'              '.cursorrules' '.cursorrules' 'Cursor 旧版'
 
-# 2) CLAUDE.md：Claude Code（项目根，@AGENTS.md 同目录导入）
-render 'CLAUDE.md' 'CLAUDE.md' 'Claude Code'
-
-# 3) .cursorrules：Cursor 旧版（项目根）
-render '.cursorrules' '.cursorrules' 'Cursor 旧版'
-
-# 4) adapters/ 各目录式工具入口
-render 'adapters/cursor/cmspro.mdc'              '.cursor/rules/cmspro.mdc'        'Cursor 新版'
-render 'adapters/trae/cmspro.md'                 '.trae/rules/cmspro.md'           'Trae'
-render 'adapters/windsurf/cmspro.md'             '.windsurf/rules/cmspro.md'       'Windsurf'
-render 'adapters/cline/cmspro.md'                '.clinerules/cmspro.md'           'Cline'
-render 'adapters/github/copilot-instructions.md' '.github/copilot-instructions.md' 'GitHub Copilot'
-render 'adapters/gemini/GEMINI.md'               'GEMINI.md'                       'Gemini CLI'
-render 'adapters/aider/CONVENTIONS.md'           'CONVENTIONS.md'                  'Aider'
-render 'adapters/codebuddy/cmspro.md'            '.codebuddy/rules/cmspro.md'      'CodeBuddy'
-render 'adapters/kiro/cmspro.md'                 '.kiro/steering/cmspro.md'        'Kiro'
-render 'adapters/qoder/cmspro.md'                '.qoder/rules/cmspro.md'          'Qoder'
+# adapters/ 各目录式工具入口（cursor 一个标识同时覆盖新旧版入口）
+deploy_if 'cursor'    'adapters/cursor/cmspro.mdc'              '.cursor/rules/cmspro.mdc'        'Cursor 新版'
+deploy_if 'trae'      'adapters/trae/cmspro.md'                 '.trae/rules/cmspro.md'           'Trae'
+deploy_if 'windsurf'  'adapters/windsurf/cmspro.md'             '.windsurf/rules/cmspro.md'       'Windsurf'
+deploy_if 'cline'     'adapters/cline/cmspro.md'                '.clinerules/cmspro.md'           'Cline'
+deploy_if 'github'    'adapters/github/copilot-instructions.md' '.github/copilot-instructions.md' 'GitHub Copilot'
+deploy_if 'gemini'    'adapters/gemini/GEMINI.md'               'GEMINI.md'                       'Gemini CLI'
+deploy_if 'aider'     'adapters/aider/CONVENTIONS.md'           'CONVENTIONS.md'                  'Aider'
+deploy_if 'codebuddy' 'adapters/codebuddy/cmspro.md'            '.codebuddy/rules/cmspro.md'      'CodeBuddy'
+deploy_if 'kiro'      'adapters/kiro/cmspro.md'                 '.kiro/steering/cmspro.md'        'Kiro'
+deploy_if 'qoder'     'adapters/qoder/cmspro.md'                '.qoder/rules/cmspro.md'          'Qoder'
 
 # ---------- 部署结果 ----------
 echo "-- 已部署 ${#DEPLOYED[@]} 个入口 --"

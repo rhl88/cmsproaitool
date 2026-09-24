@@ -55,12 +55,15 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 # Windows（PowerShell，在规则包目录内执行；若执行策略受限可加 -ExecutionPolicy Bypass）
 .\install.ps1 -ProjectRoot <目标项目根目录>          # 首次部署（已存在的入口自动跳过）
 .\install.ps1 -ProjectRoot <目标项目根目录> -Force    # 规则包升级后覆盖部署
+.\install.ps1 -ProjectRoot <目标项目根目录> -Tools trae           # 仅部署当前所用工具（Trae）的入口
+.\install.ps1 -ProjectRoot <目标项目根目录> -Tools claude,cursor -Force
 ```
 
 ```bash
 # macOS / Linux / Git Bash
 ./install.sh <目标项目根目录>          # 首次部署
 ./install.sh <目标项目根目录> --force  # 覆盖部署
+./install.sh <目标项目根目录> --tools trae          # 仅部署当前所用工具（Trae）的入口
 ```
 
 部署产物与工具对照（共 13 个入口，均为薄入口，详细规范仍以包内 `rules/`、`skills/` 为单一来源）：
@@ -84,6 +87,7 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 部署说明：
 
 - 脚本仅生成上述入口文件，不改动项目其他内容；目标位置已存在同名文件时默认跳过，`-Force` / `--force` 覆盖。
+- **按工具部署**：`-Tools`（PowerShell）/ `--tools`（Shell）指定仅部署当前所用工具的入口，多个工具逗号分隔；不传则全量部署。支持标识：`codex`、`claude`、`cursor`、`trae`、`windsurf`、`cline`、`github`、`gemini`、`aider`、`codebuddy`、`kiro`、`qoder`。依赖说明：`claude`（CLAUDE.md）与 `gemini`（GEMINI.md）入口 `@` 导入 `AGENTS.md`，指定其一会连带部署 `AGENTS.md`；`cursor` 一个标识同时覆盖新旧版入口。
 - 包根 `AGENTS.md` / `CLAUDE.md` / `.cursorrules` 部署时，其中的 `rules/`、`skills/` 相对路径会自动改写为规则包在项目内的实际路径；`adapters/` 模板中的 `{{RULES_ROOT}}` 占位符同理替换。
 - 部署后建议将入口文件随项目提交，团队成员克隆后各工具即可直接自动加载规则。
 - 技能自动触发（可选）：Claude Code 将包内 `skills/` 下各技能目录复制到 `.claude/skills/`；Trae 复制到 `.trae/skills/`；其余工具由 AI 按 `AGENTS.md` 第五章索引按需读取。
@@ -105,12 +109,14 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 2. 通读规则包根目录的 AGENTS.md，严格遵守其中全部规则（语言要求、八荣八耻、全局框架保护、关键硬性规范）。
 3. 后续任务命中 AGENTS.md 第五章技能索引的触发条件时，先读取规则包 skills/<技能名>/SKILL.md 并严格遵循其流程。
 4. 需要查阅详细规范时，按 AGENTS.md 第三章索引读取规则包 rules/ 对应文档。
+5. 本方式纯对话生效：不要向项目目录生成、复制或部署任何规则入口文件（AGENTS.md、CLAUDE.md、.cursorrules 及规则包 adapters/ 下全部模板均不部署）；若后续我明确要求持久化部署，仅部署当前所用工具对应的入口（参照规则包 README 方式一，用部署脚本 -Tools/--tools 参数指定当前工具），禁止全量部署所有工具的入口。
 完成后回复「CMSPRO 规则已加载」，然后等待我的任务指令。
 ```
 
 > 说明：
 > - 已按方式一/二完成持久化配置的项目无需再粘贴提示词。
 > - 提示词第 1 步会优先命中随项目分发的规则包（如 `docs/规则技能包/`），避免重复克隆。
+> - 提示词第 5 条约束 AI 不得借机向项目目录部署入口文件（部分 AI 会自作主张全量生成 `adapters/` 所有工具的入口）；确需持久化时按「当前用什么工具就只部署什么工具入口」执行（方式一 `-Tools` / `--tools` 参数）。
 > - 技能使用：任务命中技能触发条件时，AI 会读取对应 `skills/<技能名>/SKILL.md` 并遵循其流程（触发条件清单见 `AGENTS.md` 第五章）。
 
 ## 不支持上述任何机制的工具（龙虾、Hermes、WorkBuddy、WorkCode 等）
@@ -153,15 +159,17 @@ CMSPRO v5 的 AI 编码助手协作规则与技能打包，面向**任何 AI 编
 ## 使用建议
 
 - **保持包结构完整**：`rules/` 与 `skills/` 的相对位置不变，包内所有交叉引用才能解析。
-- **入口文件可按工具裁剪**：只用部分工具时，仅部署对应入口（见方式一对照表），不用的入口不部署即可。
+- **入口文件可按工具裁剪**：当前用什么工具就只部署什么工具的入口——部署脚本加 `-Tools <工具>` / `--tools <工具>` 即可（见方式一），或参照方式二手动复制对应入口；不用的入口不部署，避免项目里出现一堆无关工具的规则目录。
 - **环境信息自行填写**：`rules/01-CMSPRO开发规范.md` 中「当前开发信息」与「双远程配置」为占位符，由使用者按实际环境填写。
 - **更新方式**：规范文档升级后，替换 `rules/` 对应文件并同步 `AGENTS.md` 摘要，同时同步 `adapters/` 各精简版入口（若核心规则有变）与包根 `.cursorrules`；新增问题案例按 `rules/CMSPRO-v5-应用开发常见问题.md` 文末模板追加；新增技能在 `skills/` 建目录并同步 `AGENTS.md` 第五章与 `rules/02-CMSPRO协作总则.md` 路由表；升级后在各项目内重新执行部署脚本并加 `-Force` / `--force` 覆盖。
 - **编码说明**：包内所有文件为 UTF-8 无 BOM；唯一例外是 `install.ps1` 为 UTF-8 带 BOM——Windows PowerShell 5.1 对无 BOM 的 UTF-8 脚本会按 ANSI 误读中文导致语法错误，微软官方要求含非 ASCII 的 `.ps1` 必须带 BOM；该文件为部署工具，不参与 Web 输出。
 
 ## 版本
 
-- 打包版本：v1.2.1（2026-09-17）
+- 打包版本：v1.2.3（2026-09-24）
 - 变更记录：
+  - v1.2.3：部署脚本新增按工具部署参数（`install.ps1 -Tools` / `install.sh --tools`，支持 codex/claude/cursor/trae/windsurf/cline/github/gemini/aider/codebuddy/kiro/qoder 十二个标识，claude/gemini 连带部署其 `@` 导入依赖的 AGENTS.md，cursor 覆盖新旧版入口）；方式三一键提示词新增第 5 条约束——纯对话生效、禁止向项目目录全量部署入口文件，修复部分 AI 执行提示词时自作主张全量生成 `adapters/` 所有工具入口的问题。
+  - v1.2.2：同步上游源更新——`rules/CmsPro-v5-应用开发文档.md` 钩子表新增「已实现：消息通知（notifications.* 系列）」（`admin.notifications.todos` Filter），并新增「消息通知（通知中心扩展点）」章节（推送型通知 `NotificationService::push` 契约、聚合型待办 `registerFilter` 契约、权限过滤与卸载清理生命周期）。
   - v1.2.1：同步上游源更新——`rules/CmsPro-v5-应用开发文档.md` 补充「记住登录状态（Remember Me）」章节；测试回归口径由「全量回归」统一为「框架回归」（`php artisan test` / `composer test` 仅运行 `Unit`/`Feature` 套件，不收集 `app/Apps/*/Tests`，应用测试在应用自身 Tests 目录单独执行），同步更新 `rules/01-CMSPRO开发规范.md` 与 `AGENTS.md` 摘要。
   - v1.2.0：新增 Kiro（`.kiro/steering/`）与 Qoder（`.qoder/rules/`）原生适配模板，入口总数 11 → 13；两者同时原生兼容项目根 `AGENTS.md`，形成双保险。
   - v1.1.0：新增 `install.ps1` / `install.sh` 一键部署脚本与 `adapters/` 八工具入口模板（Cursor 新版、Trae、Windsurf、Cline、GitHub Copilot、Gemini CLI、Aider、CodeBuddy），实现各工具自动加载；一键提示词改为优先检测项目内已有规则包。

@@ -19,10 +19,18 @@
     行为说明：
     - 仅生成入口文件，不改动项目其他内容；
     - 目标位置已存在同名文件时默认跳过，加 -Force 覆盖；
+    - 加 -Tools 可仅部署指定工具的入口（当前用什么工具就部署什么工具的入口，
+      避免项目里出现一堆无关工具的规则目录）；不传则全量部署；
     - 所有产物以「UTF-8 无 BOM」保存；
     - 包根 AGENTS.md / CLAUDE.md / .cursorrules 部署时会将其中的 `rules/`、`skills/`
       相对路径改写为规则包在项目内的实际路径；adapters/ 模板中的 {{RULES_ROOT}}
       占位符同理替换。
+
+    支持的工具标识（-Tools 取值，逗号分隔，大小写不敏感）：
+      codex / claude / cursor / trae / windsurf / cline / github / gemini /
+      aider / codebuddy / kiro / qoder
+    依赖说明：claude（CLAUDE.md）与 gemini（GEMINI.md）入口通过 @ 导入 AGENTS.md，
+      指定其一时会连带部署 AGENTS.md；cursor 同时部署新旧版入口。
 
 .EXAMPLE
     .\install.ps1 -ProjectRoot E:\wwwroot\myproject
@@ -34,12 +42,24 @@
 
     覆盖部署全部入口文件（规则包升级后重新部署用）。
 
+.EXAMPLE
+    .\install.ps1 -ProjectRoot E:\wwwroot\myproject -Tools trae
+
+    仅部署 Trae 入口（.trae/rules/cmspro.md）。
+
+.EXAMPLE
+    .\install.ps1 -ProjectRoot E:\wwwroot\myproject -Tools claude,cursor
+
+    仅部署 Claude Code 与 Cursor 入口（CLAUDE.md 会连带部署其依赖的 AGENTS.md）。
+
 .NOTES
     若执行策略受限，可用：powershell -ExecutionPolicy Bypass -File .\install.ps1 -ProjectRoot <路径>
 #>
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectRoot,
+    # 可选：仅部署指定工具的入口，逗号分隔或数组传入，如 -Tools trae 或 -Tools trae,cursor
+    [string[]]$Tools,
     [switch]$Force
 )
 
@@ -114,40 +134,58 @@ function Read-PackageFile {
     return [System.IO.File]::ReadAllText($src)
 }
 
+# --- 部署清单 ---
+# Tools：该入口归属的工具标识（-Tools 命中其一即部署）
+# 依赖说明：AGENTS.md 同时是 claude（CLAUDE.md @导入）与 gemini（GEMINI.md @导入）的依赖入口，
+#          故其 Tools 含 codex/claude/gemini；cursor 一个标识同时覆盖新旧版入口。
+$entries = @(
+    @{ Tools = @('codex','claude','gemini'); Src = 'AGENTS.md';                                Dst = 'AGENTS.md';                         Label = 'Codex/OpenCode/Zed 等'; Note = $true },
+    @{ Tools = @('claude');                  Src = 'CLAUDE.md';                                Dst = 'CLAUDE.md';                         Label = 'Claude Code' },
+    @{ Tools = @('cursor');                  Src = '.cursorrules';                             Dst = '.cursorrules';                      Label = 'Cursor 旧版' },
+    @{ Tools = @('cursor');                  Src = 'adapters/cursor/cmspro.mdc';               Dst = '.cursor/rules/cmspro.mdc';          Label = 'Cursor 新版' },
+    @{ Tools = @('trae');                    Src = 'adapters/trae/cmspro.md';                  Dst = '.trae/rules/cmspro.md';             Label = 'Trae' },
+    @{ Tools = @('windsurf');                Src = 'adapters/windsurf/cmspro.md';              Dst = '.windsurf/rules/cmspro.md';         Label = 'Windsurf' },
+    @{ Tools = @('cline');                   Src = 'adapters/cline/cmspro.md';                 Dst = '.clinerules/cmspro.md';             Label = 'Cline' },
+    @{ Tools = @('github');                  Src = 'adapters/github/copilot-instructions.md';  Dst = '.github/copilot-instructions.md';   Label = 'GitHub Copilot' },
+    @{ Tools = @('gemini');                  Src = 'adapters/gemini/GEMINI.md';                Dst = 'GEMINI.md';                         Label = 'Gemini CLI' },
+    @{ Tools = @('aider');                   Src = 'adapters/aider/CONVENTIONS.md';            Dst = 'CONVENTIONS.md';                    Label = 'Aider' },
+    @{ Tools = @('codebuddy');               Src = 'adapters/codebuddy/cmspro.md';             Dst = '.codebuddy/rules/cmspro.md';        Label = 'CodeBuddy' },
+    @{ Tools = @('kiro');                    Src = 'adapters/kiro/cmspro.md';                  Dst = '.kiro/steering/cmspro.md';          Label = 'Kiro' },
+    @{ Tools = @('qoder');                   Src = 'adapters/qoder/cmspro.md';                 Dst = '.qoder/rules/cmspro.md';            Label = 'Qoder' }
+)
+
+# --- 工具标识校验与清单过滤 ---
+$validTools = $entries | ForEach-Object { $_.Tools } | Select-Object -Unique
+if ($Tools) {
+    # 逗号分隔/数组传入统一规整：去空白、转小写
+    $Tools = @($Tools | ForEach-Object { $_.Split(',') } | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ })
+    $invalid = @($Tools | Where-Object { $validTools -notcontains $_ })
+    if ($invalid.Count -gt 0) {
+        throw "不支持的工具标识：$($invalid -join ', ')。支持：$((($validTools | Sort-Object) -join ', '))"
+    }
+}
+$selected = if ($Tools) {
+    @($entries | Where-Object { $owners = $_.Tools; @($owners | Where-Object { $Tools -contains $_ }).Count -gt 0 })
+} else {
+    $entries
+}
+
 # --- 开始部署 ---
 Write-Host "== CMSPRO 规则技能包一键部署 ==" -ForegroundColor Cyan
 Write-Host "目标项目根：$ProjectRoot"
 Write-Host "规则包路径：$rulesRoot"
+if ($Tools) {
+    Write-Host "部署范围：指定工具（$($Tools -join ', ')）"
+} else {
+    Write-Host "部署范围：全部工具（如仅需当前工具入口，可加 -Tools <工具标识>）"
+}
 Write-Host ""
 
-# 1) AGENTS.md：Codex / OpenCode / Zed / Jules 等 AGENTS.md 约定工具（项目根）
-Write-Entry -Content (Add-DeployNote (Convert-PackageContent (Read-PackageFile 'AGENTS.md'))) `
-           -RelativeTarget 'AGENTS.md' -Label 'Codex/OpenCode/Zed 等'
-
-# 2) CLAUDE.md：Claude Code（项目根，@AGENTS.md 同目录导入）
-Write-Entry -Content (Convert-PackageContent (Read-PackageFile 'CLAUDE.md')) `
-           -RelativeTarget 'CLAUDE.md' -Label 'Claude Code'
-
-# 3) .cursorrules：Cursor 旧版（项目根）
-Write-Entry -Content (Convert-PackageContent (Read-PackageFile '.cursorrules')) `
-           -RelativeTarget '.cursorrules' -Label 'Cursor 旧版'
-
-# 4) adapters/ 各目录式工具入口
-$adapterEntries = @(
-    @{ Src = 'adapters/cursor/cmspro.mdc';             Dst = '.cursor/rules/cmspro.mdc';           Label = 'Cursor 新版' },
-    @{ Src = 'adapters/trae/cmspro.md';                Dst = '.trae/rules/cmspro.md';              Label = 'Trae' },
-    @{ Src = 'adapters/windsurf/cmspro.md';            Dst = '.windsurf/rules/cmspro.md';          Label = 'Windsurf' },
-    @{ Src = 'adapters/cline/cmspro.md';               Dst = '.clinerules/cmspro.md';              Label = 'Cline' },
-    @{ Src = 'adapters/github/copilot-instructions.md'; Dst = '.github/copilot-instructions.md';    Label = 'GitHub Copilot' },
-    @{ Src = 'adapters/gemini/GEMINI.md';              Dst = 'GEMINI.md';                          Label = 'Gemini CLI' },
-    @{ Src = 'adapters/aider/CONVENTIONS.md';          Dst = 'CONVENTIONS.md';                     Label = 'Aider' },
-    @{ Src = 'adapters/codebuddy/cmspro.md';           Dst = '.codebuddy/rules/cmspro.md';         Label = 'CodeBuddy' },
-    @{ Src = 'adapters/kiro/cmspro.md';                Dst = '.kiro/steering/cmspro.md';           Label = 'Kiro' },
-    @{ Src = 'adapters/qoder/cmspro.md';               Dst = '.qoder/rules/cmspro.md';             Label = 'Qoder' }
-)
-foreach ($e in $adapterEntries) {
-    Write-Entry -Content (Convert-PackageContent (Read-PackageFile $e.Src)) `
-               -RelativeTarget $e.Dst -Label $e.Label
+# 逐条部署选中入口
+foreach ($e in $selected) {
+    $content = Convert-PackageContent (Read-PackageFile $e.Src)
+    if ($e.Note) { $content = Add-DeployNote $content }
+    Write-Entry -Content $content -RelativeTarget $e.Dst -Label $e.Label
 }
 
 # --- 部署结果 ---
