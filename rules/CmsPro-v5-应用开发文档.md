@@ -157,7 +157,7 @@ class ServiceProvider extends BaseServiceProvider
 | -------------- | ------ | -- | -------------------------------------------- |
 | id             | string | 是  | 应用唯一标识，**必须**采用 `开发者唯一标识.应用标识` 格式（如 `cmspro.blog`），详见「应用命名规范」章节 |
 | name           | string | 是  | 应用显示名称                                       |
-| description    | string | 是  | 应用描述                                         |
+| description    | string | 是  | 应用描述，**必须控制在 255 字符以内**（对应系统 `apps` 表 `varchar(255)`，超长将导致安装报错 `1406 Data too long`）。只写一句话简介，详细特性说明放应用 `doc/` 目录文档 |
 | version        | string | 是  | 语义化版本号（如 1.0.0）                              |
 | author         | string | 是  | 作者                                           |
 | author\_url    | string | 否  | 作者主页                                         |
@@ -2352,6 +2352,7 @@ protected function seedDefaultConfigs(): void
 | order      | integer    | 否         | 排序值，越小越靠前                                    |
 | **parent** | string/int | **否**     | **父菜单标识（名称/路径/ID），指定后将 children 直接挂载到该父菜单下** |
 | children   | array      | 否         | 子菜单列表                                        |
+| **open_type** | string  | **否**     | **打开方式**（仅叶子菜单声明，**开发建议优先 `_component` 路由模式**）：`_component` 路由模式（推荐）/ `_iframe` 嵌套网页（系统默认值）/ `_blank` 新建窗口 / `_layer` 弹窗网页。新建时写入；升级时仅当 manifest 显式声明才同步，未声明保留现有值。详见下方「菜单打开方式（open_type）」 |
 
 > **注意**：使用 `parent` 字段时，当前菜单项本身不会被创建为可见菜单，其 `children` 将直接成为父菜单的子项。卸载应用时仅删除 `app_id` 匹配的菜单，**不影响父菜单**。
 
@@ -2503,6 +2504,88 @@ protected function seedDefaultConfigs(): void
 | 路由前缀 | `/admin/{appId}` | `/user/{appId}` | 无前缀或自定义 |
 
 > **注意**：`home_menus` 为扁平结构，不支持 `children` 和 `parent` 字段，**不存在目录层级**，每个菜单项均为叶子导航，**必须声明 `path`** 指向实际页面路由（如首页 `"path": "/"`）。官网前端菜单通常为一级导航，无需层级嵌套。卸载应用时，`home_menus` 注册的菜单同样通过 `app_id` 自动清除。
+
+### 菜单打开方式（open_type）
+
+每条菜单在 `admin_menus` 表中有一个 `open_type` 字段（`VARCHAR(20) NOT NULL DEFAULT '_iframe'`），决定点击菜单后页面的打开方式。
+
+- **配置入口**：管理后台「系统 → 菜单管理 → 编辑菜单 → 打开方式」下拉框。
+- **默认值**：`_iframe`（嵌套网页），即系统的历史行为——所有系统菜单与应用菜单默认均以嵌套网页打开。**开发建议：应用新建菜单优先显式声明 `open_type: "_component"`（路由模式），仅特殊场景使用 `_iframe`，详见下方「选型建议」。**
+- **应用声明菜单**：`manifest.json` 的 `menus` / `user_menus` 中叶子菜单可声明 `open_type` 字段（四种取值同上），新建菜单时写入；升级时仅当 manifest 显式声明才同步该字段，未声明则保留数据库现有值（避免覆盖管理员手动调整）。参考示例：Demo 应用 manifest「打开方式演示」菜单目录（`app/Apps/CmsproDemo/manifest.json`）。`home_menus` 为官网前端导航（普通链接跳转），不使用打开方式。
+- **取值验证**：仅接受 `_iframe`、`_component`、`_blank`、`_layer` 四个值，非法值与历史空值在输出菜单树时一律兜底为 `_iframe`。
+
+#### 四种打开方式总览
+
+| 取值 | 界面名称 | 打开行为 | 典型适用场景 |
+| ---------- | ------ | ------------------------------ | -------------------------- |
+| `_iframe` | 嵌套网页 | 在选项卡内用 `<iframe>` 嵌入完整页面 | 完整独立页面、外部 URL、需样式/JS 隔离的页面 |
+| `_component` | 路由模式 | AJAX 请求路径，把返回的 HTML 片段直接注入选项卡容器 | **应用后台页面（推荐）**、与主框架深度融合的轻量内置页面 |
+| `_blank` | 新建窗口 | 浏览器新标签页直接打开路径 | 独立工具页、需要保留当前工作区的场景 |
+| `_layer` | 弹窗网页 | `layer.open(type:2)` 弹出 iframe 弹窗（80%×80%，可最大化） | 临时性操作页、预览页、辅助面板 |
+
+#### 各打开方式详细说明
+
+**`_iframe` 嵌套网页（默认）**
+
+- 渲染机制：在选项卡内容区创建 `<iframe src="路径">`，完整加载目标页面。
+- 页面要求：`path` 必须指向**可独立访问的完整页面**（含完整 HTML 文档结构），支持站内页面，也支持跨域的外部 URL。
+- 运行环境：iframe 拥有独立的 `window` / `document`，与主框架完全隔离；页面自带登录态（同域 Cookie 共享），自带 CSS 与 JS，互不干扰。
+- 刷新行为：刷新选项卡即重新加载 `iframe.src`，页面状态完全重置。
+
+**`_component` 路由模式**
+
+- 渲染机制：通过 AJAX（GET，多选项卡模式下为同步 `async:false` 以保证选项卡顺序）请求 `path`，将响应的 **HTML 片段** 直接注入选项卡内容区 `div`，不是 iframe。
+- 页面要求：`path` 返回的内容应是**纯 HTML 片段**（不携带完整文档骨架的页面也可以加载，但规范上应输出片段），页面不应重复引入 layui/jQuery 等主框架资源。
+- 运行环境：注入内容与主框架**共享同一个 `window` / `document`**，可直接使用主框架已加载的 layui 模块、jQuery、全局配置与登录态，无 iframe 嵌套层级。
+- 注意事项：页面内 JS 的全局变量与主框架共享，注意命名冲突；组件渲染（如表单）需在内容注入后自行调用 `element.init()` / `form.render()` 等；错误提示依赖主框架 layer。
+- 刷新行为：刷新选项卡重新 AJAX 拉取并替换 HTML。
+
+**`_blank` 新建窗口**
+
+- 渲染机制：前端渲染菜单时该节点不绑定选项卡打开逻辑，`<a>` 直接输出 `href` 与 `target="_blank"`，由浏览器在新标签页打开。
+- 页面要求：与嵌套网页一致，指向完整页面。
+- 特点：完全不占用主框架选项卡，当前工作区保持不变；新窗口中页面独立运行（同域下共享登录态）。
+
+**`_layer` 弹窗网页**
+
+- 渲染机制：点击菜单由主框架拦截，调用 `layer.open({type: 2, content: 路径, area: ['80%', '80%'], maxmin: true})`，以 iframe 弹窗呈现。
+- 页面要求：与嵌套网页一致，指向完整页面。
+- 特点：不新增选项卡，以浮层形式叠加在当前页面上，可最大化，关闭即返回；适合从任意页面快速唤起的辅助操作。
+
+#### 路由模式与嵌套网页的区别（重点）
+
+两者都能在选项卡内打开页面，本质区别在于**渲染载体与运行上下文**：
+
+| 对比维度 | `_component` 路由模式 | `_iframe` 嵌套网页（默认） |
+| ----------- | ---------------------------------------- | ------------------------------------- |
+| 渲染载体 | AJAX 拉取 HTML 片段，注入主页面 DOM | `<iframe>` 加载完整独立文档 |
+| JS 上下文 | 与主框架共享同一个 `window` / `document` | 独立沙箱，与主框架隔离 |
+| 可用资源 | 直接使用主框架的 layui/jQuery/全局配置 | 仅页面自身引入的资源 |
+| 样式隔离 | 无隔离，页面 CSS 与主框架互相影响 | 完全隔离，互不影响 |
+| 登录态 | 同域下天然共享（本来就是同一页面） | 同域 Cookie 共享，跨域不可用 |
+| URL 要求 | 返回 HTML 片段（复用主框架资源） | 完整独立页面，可跨域 |
+| 外部链接 | 不适用（无法注入异域 DOM） | 适用 |
+| 嵌套层级 | 无（扁平 DOM，布局自适应更自然） | 多一层 iframe 文档层级 |
+| 全局污染风险 | 有（JS 全局变量互相覆盖） | 无 |
+| 刷新/会话恢复 | 重新 AJAX 注入 | 重新加载 iframe.src |
+| 适用页面 | 框架内置轻页面、需要深度操作主框架状态的页面 | 应用后台页、第三方页、需隔离的完整功能页 |
+
+**选型建议**：
+
+- 应用开发**优先使用 `_component` 路由模式**：页面与主框架共享 layui 环境与全局状态，无 iframe 嵌套层级、布局自适应更自然，且无 iframe 二次加载开销。使用时页面应输出 **HTML 片段**（不重复引入 layui/jQuery 等主框架资源），注意 JS 全局命名冲突，并在内容注入后自行调用 `element.init()` / `form.render()` 等渲染组件。
+- 仅当页面**必须以完整独立文档运行**（如引入与主框架冲突的第三方组件库）、需要加载**外部 URL**、或需要**样式/JS 完全隔离**时，使用 `_iframe` 嵌套网页；此时页面按"完整页面"开发（参见第六章「视图开发」）即可，无需关心主框架内部实现。
+- 需要跳转第三方系统或独立工具时选 `_blank`；需要浮层式辅助操作时选 `_layer`。
+- **注意**：用户端（`user_menus`）页面运行于 iframe 多标签页体系，视图必须为独立完整 HTML（参见第二十二章），其菜单打开方式通常保持 `_iframe`；上述"优先路由模式"建议主要适用于后台（`menus`）。
+
+#### 数据链路与实现位置
+
+打开方式的生效链路（供维护参考）：
+
+1. **表单**：`resources/views/admin/menu/form.blade.php`（打开方式下拉，提交 `open_type`）
+2. **验证**：`app/Http/Requests/Menu/StoreMenuRequest.php`、`UpdateMenuRequest.php`（`in:_iframe,_component,_blank,_layer`）
+3. **存储**：`app/Services/MenuService.php`（store/update）→ `admin_menus.open_type`
+4. **输出**：`app/Http/Controllers/Admin/ConfigController.php` 的 `buildMenuTree()` 将 `open_type` 映射为前端 `openType` 字段（白名单校验，兜底 `_iframe`）
+5. **执行**：`public/CmsProUi/component/pear/module/menu.js`（`_blank` 渲染 `target='_blank'`）、`admin.js`（`_layer` 调 layer.open）、`tabPage.js` / `page.js`（`_iframe` 建 iframe，其余 AJAX 注入片段，即路由模式）
 
 ***
 
